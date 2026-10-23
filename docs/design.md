@@ -45,13 +45,11 @@ bin/mongo-cli.js
 5. runner 启动 `mongosh --nodb --norc --quiet --file <固定worker>`。请求与凭据经匿名 stdin 管道传递。
 6. worker 在内存中构造连接串，执行支持的操作，只返回预定结果或错误类型/代码。runner 从不透传原始 shell stdout/stderr。
 
-0.1.1 增加 `config init --from-uri`（终端隐藏粘贴）与 `--uri-stdin`（私密管道）。URI 在本机解析为允许的连接参数和独立凭据，原始 URI 不落盘、不回显；未知或重复参数报错。多节点地址不使用不支持 MongoDB seed list 的 WHATWG URL 直接解析。支持显式 SCRAM/PLAIN 和 `$external`，worker 重建连接时保留对应机制；PLAIN 的 LDAP 服务端认证仍需在目标环境验证。显式机制参与凭据键，未指定机制的旧配置继续使用原来的键。
+`config init --from-uri` 使用终端隐藏粘贴，`--uri-stdin` 使用私密管道。URI 在本机解析为允许的连接参数和独立凭据，原始 URI 不落盘、不回显；未知或重复参数报错。多节点地址不使用不支持 MongoDB seed list 的 WHATWG URL 直接解析。支持显式 SCRAM/PLAIN 和 `$external`，worker 重建连接时保留对应机制；PLAIN 的 LDAP 服务端认证仍需在目标环境验证。显式机制参与凭据键，未指定机制的旧配置继续使用原来的键。
 
-0.1.2 的 `config init` 先展示配置方式选择，URI 在第一项并作为回车默认值；第二项逐项输入。`--from-uri`、`--step-by-step` 和 `--uri-stdin` 可跳过选择，三者互斥。
+`config init` 先展示配置方式选择，URI 在第一项并作为回车默认值；第二项逐项输入。`--from-uri`、`--step-by-step` 和 `--uri-stdin` 可跳过选择，三者互斥。
 
-0.1.3 统一使用作者命名空间 `~/.zhouping/mongo`。默认目录首次解析时，将尚未迁移的旧 `~/.config/mongo-cli` 整体 rename 到新位置；已有目标目录不会被覆盖。自定义配置目录不迁移。默认目录的新旧路径作为同一凭据命名空间，散列仍保留旧目录的身份输入，因此 file 后端文件名、macOS keychain 的 account 均保持可用；无需提取或重写密码。该兼容映射只影响散列输入，不会在旧路径继续读写文件。
-
-0.1.4 根据实际 npm 账号统一使用 `@xwkh/mongo-cli` 和 `~/.xwkh/mongo`。迁移优先查找上一版 `~/.zhouping/mongo`，其次是最早的 `~/.config/mongo-cli`；凭据身份保持向后兼容，已配置用户无需重新登录。
+包名统一使用 `@xwkh/mongo-cli`，默认配置目录为 `~/.xwkh/mongo`。`locations.js` 只在兼容迁移逻辑中识别历史目录：默认目录首次解析时，将找到的旧目录整体 rename 到新位置；已有目标目录不会被覆盖，自定义配置目录不迁移。默认目录的新旧路径作为同一凭据命名空间，散列保留原有身份输入，因此 file 后端文件名、macOS keychain 的 account 均保持可用；无需提取或重写密码。兼容映射只影响散列输入，不会在旧路径继续读写文件。
 
 macOS 保存凭据时同样通过 `security -i` 的 stdin 传递 base64 编码的数据，没有密码命令行参数。base64 只服务于命令解析，不是加密。保存时如果钥匙串存在但访问失败，会保留失败，不静默写入文件。Windows 不实现文件凭据存储，自动化环境可注入私密环境变量；Windows 全链路未经验证。
 
