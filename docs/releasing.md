@@ -42,9 +42,11 @@ npm view @xwkh/mongo-cli version dist.integrity --registry=https://registry.npmj
 发布后检查：
 
 ```sh
-npm install -g @xwkh/mongo-cli
+npm install -g @xwkh/mongo-cli --registry=https://registry.npmjs.org/
 mongo-cli version
 mongo-cli skill install --agent codex
 ```
+
+全局安装和升级只使用 npm 官方仓库中的已发布版本，不安装本地目录或 tgz，也不使用 `npm link`。未发布的修改直接从源码运行测试，发布成功后再从 npm 升级。
 
 升级后重新加载代理会话以使用新版 skill。

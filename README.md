@@ -12,16 +12,7 @@ mongo-cli version
 mongo-cli skill install --agent codex
 ```
 
-源码位于 [GitHub](https://github.com/xwkh/mongo-cli)。需要从源码安装时：
-
-```sh
-git clone https://github.com/xwkh/mongo-cli.git
-cd mongo-cli
-npm pack --pack-destination /tmp
-npm install -g /tmp/xwkh-mongo-cli-0.1.4.tgz --omit=dev
-```
-
-先打包再安装能兼容 Volta 的全局命令管理。未使用 Volta 的环境也可直接 `npm install -g . --omit=dev`。
+安装和升级统一从 npm 官方仓库获取已发布的包。源码位于 [GitHub](https://github.com/xwkh/mongo-cli)，用于开发和验证；不使用源码目录、本地 tgz 或 `npm link` 替代全局安装。
 
 **在你自己的终端**完成配置，不要把账号密码发到聊天里：
 
