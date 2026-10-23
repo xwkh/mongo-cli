@@ -2,15 +2,16 @@
 name: mongodb
 description: "Query and manage MongoDB through mongo-cli using locally stored connections and credentials. Use when the user asks to inspect MongoDB databases, collections, fields, indexes, documents, query plans or aggregations, or explicitly requests MongoDB data/index changes. Discover real database and collection names before querying. Does not administer MongoDB users, clusters, backups or arbitrary shell scripts."
 metadata:
-  version: "0.1.4"
+  version: "0.2.0"
   requires:
-    bins: ["mongo-cli", "mongosh"]
+    bins: ["mongo-cli"]
 ---
 
 # MongoDB
 
-Use `mongo-cli`, which wraps local `mongosh` and emits JSON. Set
-`MONGO_CLI_SKILL=0.1.4` when running it after loading this skill.
+Use `mongo-cli`, which includes the official MongoDB driver and emits JSON.
+No separate mongosh installation is needed. Set
+`MONGO_CLI_SKILL=0.2.0` when running it after loading this skill.
 
 ## Connection and credentials
 
@@ -81,12 +82,12 @@ Each accepts a file path or `-` for stdin. Only one JSON input may consume stdin
   `--projection` for server-side document projection.
 - BSON ObjectId, Date, Long, Decimal128 and other special values use lossless
   Extended JSON. Ordinary Int32/Double values appear as JSON numbers.
-- `--timeout` is the total shell deadline in milliseconds (default 30000).
+- `--timeout` is the total database worker deadline in milliseconds (default 30000).
   `--max-time-ms` bounds server reads (default 10000, at most the deadline).
   Output is capped at 16 MiB. Narrow a query when either limit is reached.
 - Errors are JSON on stderr, with `category`, `code`, `hint`, `next_steps`
   and `retryable`. Exit codes: 2 usage, 3 config, 4 auth, 5 permission,
-  6 missing namespace, 7 network, 8 timeout, 9 missing mongosh, 10 internal,
+  6 missing namespace, 7 network, 8 timeout, 9 worker dependency failure, 10 internal,
   11 MongoDB query failure. Do not interpret an error as an empty result.
 
 ## Authorized writes

@@ -6,10 +6,10 @@ const filter = input(['filter']);
 const write = booleans('dry-run');
 const page = strings('limit skip');
 
-export const globals = { ...strings('config use-context database format fields timeout max-time-ms mongosh'), ...booleans('help pretty allow-writes read-only version') };
+export const globals = { ...strings('config use-context database format fields timeout max-time-ms'), ...booleans('help pretty allow-writes read-only version') };
 export const specs = {
   version: { description: 'Show CLI and runtime version.', args: 0 },
-  doctor: { description: 'Check mongosh, local configuration, credentials and MongoDB connectivity.', args: 0 },
+  doctor: { description: 'Check the bundled driver, local configuration, credentials and MongoDB connectivity.', args: 0 },
   ping: { description: 'Ping the selected MongoDB connection.', args: 0 },
   'config init': { description: 'Choose URI (default) or step-by-step setup. Skip the choice with --from-uri or --step-by-step; automation can use --uri-stdin.', args: 0, options: { ...strings('name credential-store'), ...booleans('from-uri step-by-step uri-stdin') } },
   'config show': { description: 'Show selected non-secret connection settings.', args: 0 },
@@ -50,5 +50,5 @@ export function help(command) {
   if (spec) {
     return `mongo-cli ${command}${spec.operand ? ` ${spec.operand}` : ''}\n\n${spec.description}\n\nOptions:\n${Object.entries({ ...globals, ...spec.options }).map(([name, definition]) => `  --${name}${definition.type === 'string' ? ' <value>' : ''}`).join('\n')}\n\nJSON inputs also accept --<name>-file <path|->. Use Extended JSON for BSON types.\n`;
   }
-  return `mongo-cli — MongoDB for coding agents (mongosh backend)\n\nUsage: mongo-cli <noun> <verb> [options]\n\n${Object.entries(specs).filter(([name]) => !command || name.startsWith(`${command} `)).map(([name, s]) => `  ${name.padEnd(24)} ${s.description}`).join('\n')}\n\nGlobal options:\n${Object.entries(globals).map(([name, d]) => `  --${name}${d.type === 'string' ? ' <value>' : ''}`).join('\n')}\n\nJSON stdout; structured JSON errors on stderr. Writes require --allow-writes.\nStart: mongo-cli config init → mongo-cli doctor → mongo-cli db list\nAgent usage: load the companion skill with mongo-cli skill show.\n`;
+  return `mongo-cli — MongoDB for coding agents (bundled MongoDB driver)\n\nUsage: mongo-cli <noun> <verb> [options]\n\n${Object.entries(specs).filter(([name]) => !command || name.startsWith(`${command} `)).map(([name, s]) => `  ${name.padEnd(24)} ${s.description}`).join('\n')}\n\nGlobal options:\n${Object.entries(globals).map(([name, d]) => `  --${name}${d.type === 'string' ? ' <value>' : ''}`).join('\n')}\n\nJSON stdout; structured JSON errors on stderr. Writes require --allow-writes.\nStart: mongo-cli config init → mongo-cli doctor → mongo-cli db list\nAgent usage: load the companion skill with mongo-cli skill show.\n`;
 }

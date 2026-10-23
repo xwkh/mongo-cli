@@ -7,9 +7,10 @@ import { accountKey, CredentialStore, resolveCredential } from './credentials.js
 import { emit } from './io.js';
 import { specs, globals, help } from './specs.js';
 import { planOperation } from './plan.js';
-import { runMongo, mongoshVersion } from './runner.js';
+import { runMongo } from './runner.js';
 import { promptFields } from './prompts.js';
 import { manageSkill } from './skills.js';
+import { driverVersion } from './connection.js';
 import { parseMongoURI } from './uri.js';
 
 export const version = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -53,7 +54,7 @@ async function credentialsFromUser() {
 }
 
 async function execute(command, args, options) {
-  if (command === 'version') return { version, node: process.version };
+  if (command === 'version') return { version, node: process.version, driver_version: driverVersion };
   if (command.startsWith('skill ')) return manageSkill(command.split(' ')[1], options, version);
   const directory = configDirectory(options);
   const store = new CredentialStore(directory);
@@ -144,7 +145,7 @@ async function execute(command, args, options) {
     saveConfig(directory, config);
     return { context: name, action: command.split(' ')[1], current_context: config.current_context };
   }
-  // Validate operation, including read-only gating, before opening a credential store or spawning mongosh.
+  // Validate operation, including read-only gating, before opening a credential store or starting the MongoDB worker.
   const isRemote = !command.startsWith('config ') && !command.startsWith('auth ');
   const operation = isRemote ? planOperation(command, args, options) : { command };
   const selected = selectContext(directory, options);
@@ -159,8 +160,7 @@ async function execute(command, args, options) {
   }
   const timeout = integer(options.timeout ?? 30000, '--timeout (milliseconds)', 100, 600000);
   const maxTimeMS = integer(options['max-time-ms'] ?? Math.min(10000, timeout), '--max-time-ms', 1, timeout);
-  const executable = options.mongosh || process.env.MONGO_CLI_MONGOSH || 'mongosh';
-  const run = credential => runMongo({ context, credential, operation, executable, timeout, maxTimeMS });
+  const run = credential => runMongo({ context, credential, operation, timeout, maxTimeMS });
   if (command === 'auth login') {
     const credential = await credentialsFromUser();
     if (options.verify) await run(credential);
@@ -172,9 +172,8 @@ async function execute(command, args, options) {
   const credential = resolveCredential(store, directory, name, stored);
   if (command === 'auth status' && !options.verify) return { context: name, available: !!credential, source: process.env.MONGO_CLI_USERNAME ? 'environment' : stored.credential_backend || 'none', verified: false };
   if (command === 'doctor') {
-    const shellVersion = mongoshVersion(executable);
     await run(credential);
-    return { ok: true, context: name, database: context.database, mongosh_version: shellVersion, credentials: credential ? 'available' : 'not_configured', checks: { configuration: 'ok', mongosh: 'ok', connectivity: 'ok' } };
+    return { ok: true, context: name, database: context.database, driver_version: driverVersion, credentials: credential ? 'available' : 'not_configured', checks: { configuration: 'ok', driver: 'ok', connectivity: 'ok' } };
   }
   const result = await run(credential);
   return command === 'auth status' ? { context: name, available: !!credential, verified: true } : result;

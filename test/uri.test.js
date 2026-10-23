@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import vm from 'node:vm';
+import { MongoClient } from 'mongodb';
+import { connectionOptions } from '../src/connection.js';
 import { spawnSync } from 'node:child_process';
 import { parseMongoURI } from '../src/uri.js';
 import { validateContext, contextFromFlags, loadConfig } from '../src/config.js';
@@ -133,23 +134,43 @@ test('URI setup rejects credential-bearing command arguments', () => {
   assert.throws(() => parse(['config', 'init', 'mongodb://u:p@host/app']));
 });
 
-test('real worker forwards PLAIN, decoded authSource, credentials and both seeds into mongosh', async () => {
-  const source = fs.readFileSync(new URL('../src/worker.cjs', import.meta.url), 'utf8');
+test('driver receives PLAIN, decoded authSource, credentials and both seeds without URI secrets', async () => {
   const { context, credential } = parseMongoURI('mongodb://u%40example:p%3Aword@192.0.2.10,192.0.2.11/app?authMechanism=PLAIN&authSource=%24external');
-  let connected;
-  const output = [];
-  await vm.runInNewContext(source, {
-    require: () => ({ readFileSync: () => JSON.stringify({ context, credential, operation: { command: 'ping' }, timeout: 30000, max_time_ms: 10000 }) }),
-    EJSON: { deserialize: value => value, serialize: value => value }, URLSearchParams,
-    Mongo: class {
-      constructor(uri) { connected = uri; }
-      getDB(database) { assert.equal(database, 'app'); return { runCommand: async () => ({ ok: true }) }; }
-      close() {}
-    }, print: value => output.push(value)
-  });
-  assert.ok(connected.startsWith('mongodb://u%40example:p%3Aword@192.0.2.10:27017,192.0.2.11:27017/app?'));
-  const params = new URLSearchParams(connected.split('?')[1]);
-  assert.equal(params.get('authMechanism'), 'PLAIN'); assert.equal(params.get('authSource'), '$external');
-  assert.equal(params.get('retryWrites'), 'false');
-  assert.equal(JSON.parse(output[0].replace('__MONGO_CLI_RESPONSE__', '')).ok, true);
+  const { uri, options } = connectionOptions(context, credential, 30000);
+  assert.equal(uri, 'mongodb://192.0.2.10:27017,192.0.2.11:27017/app');
+  assert.ok(!uri.includes(credential.password));
+  const client = new MongoClient(uri, options);
+  try {
+    assert.equal(client.options.credentials.mechanism, 'PLAIN');
+    assert.equal(client.options.credentials.source, '$external');
+    assert.equal(client.options.credentials.username, 'u@example');
+    assert.equal(client.options.credentials.password, 'p:word');
+    assert.equal(client.options.retryWrites, false);
+    assert.equal(client.options.retryReads, false);
+    assert.equal(client.options.promoteLongs, false);
+  } finally { await client.close(); }
+});
+
+test('driver retains TLS, replica set and seed ports, including IPv6 and SRV', async () => {
+  const cases = [
+    [{ host: '::1', port: 27018, direct_connection: true }, 'mongodb://[::1]:27018/test'],
+    [{ host: '[::1]:27019,db.example:27020', tls: true, replica_set: 'rs0' }, 'mongodb://[::1]:27019,db.example:27020/test'],
+    [{ host: 'cluster.example.com', srv: true }, 'mongodb+srv://cluster.example.com/test']
+  ];
+  for (const [settings, expected] of cases) {
+    const { uri, options } = connectionOptions(validateContext(settings), null, 500);
+    assert.equal(uri, expected);
+    assert.equal(options.serverSelectionTimeoutMS, 500);
+    assert.equal(options.connectTimeoutMS, 500);
+    assert.equal(options.auth, undefined);
+    const client = new MongoClient(uri, options);
+    try {
+      assert.equal(client.options.tls, !!(settings.tls || settings.srv));
+      assert.equal(client.options.replicaSet, settings.replica_set);
+      if (settings.direct_connection) assert.equal(client.options.directConnection, true);
+    } finally { await client.close(); }
+  }
+  const { options } = connectionOptions(validateContext({ tls: true, tls_ca_file: '/certs/ca.pem', tls_certificate_key_file: '/certs/client.pem' }), null, 30000);
+  assert.equal(options.tlsCAFile, '/certs/ca.pem');
+  assert.equal(options.tlsCertificateKeyFile, '/certs/client.pem');
 });

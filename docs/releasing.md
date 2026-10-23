@@ -25,7 +25,7 @@ npm pack --dry-run
 npm publish --dry-run --access public --registry=https://registry.npmjs.org/
 ```
 
-集成测试使用独立的本机临时 MongoDB，需要可用的 mongosh。首次运行会下载测试用 MongoDB 二进制。打包内容使用 `package.json` 的 `files` 白名单，只包含入口、实现、skill、文档、包元数据和许可证，不包含个人配置、测试数据库或 `node_modules`。
+集成测试使用独立的本机临时 MongoDB，不需要 mongosh，CLI 测试子进程的 PATH 中没有外部可执行文件。首次运行会下载测试用 MongoDB 二进制。打包内容使用 `package.json` 的 `files` 白名单，只包含入口、实现、skill、文档、包元数据和许可证，不包含个人配置、测试数据库或 `node_modules`。
 
 ## 上传与发布
 

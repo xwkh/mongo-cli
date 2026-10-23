@@ -1,7 +1,7 @@
 {
   "name": "@xwkh/mongo-cli",
-  "version": "0.1.4",
-  "description": "Agent-friendly MongoDB CLI backed by mongosh, with local credentials and a companion skill",
+  "version": "0.2.0",
+  "description": "Agent-friendly MongoDB CLI with a bundled official driver, local credentials and a companion skill",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/xwkh/mongo-cli.git"
@@ -12,7 +12,6 @@
   },
   "keywords": [
     "mongodb",
-    "mongosh",
     "cli",
     "ai",
     "agents",
@@ -40,12 +39,14 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "test:integration": "node --test test/integration/*.test.js",
-    "check": "node --check src/cli.js && node --check src/worker.cjs && npm test",
+    "check": "node --check src/cli.js && node --check src/worker.js && npm test",
     "prepublishOnly": "npm run check"
   },
   "license": "MIT",
   "devDependencies": {
-    "mongodb": "^7.7.0",
     "mongodb-memory-server": "^11.3.0"
+  },
+  "dependencies": {
+    "mongodb": "^7.7.0"
   }
 }

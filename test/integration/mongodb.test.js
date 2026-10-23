@@ -13,7 +13,9 @@ const password = 'temporary-p@ss:"word/$?中文';
 let server, client, directory, port;
 
 async function invoke(args, { env = {}, success = true, input = '' } = {}) {
-  const childEnv = { ...process.env, ...env };
+  // The CLI and its worker run via absolute Node paths. No external binaries
+  // (including mongosh) can be found in any integration invocation.
+  const childEnv = { ...process.env, PATH: directory, MONGO_CLI_MONGOSH: '/missing/mongosh', ...env };
   delete childEnv.MONGO_CLI_USERNAME; delete childEnv.MONGO_CLI_PASSWORD;
   Object.assign(childEnv, env);
   const result = await new Promise(resolve => {
@@ -35,7 +37,7 @@ before(async () => {
   await client.connect();
   const collection = client.db('app').collection('orders');
   await collection.insertMany([
-    { _id: new ObjectId('507f1f77bcf86cd799439011'), state: 'pending', amount: Decimal128.fromString('12.34'), big: Long.fromString('9223372036854775807'), createdAt: new Date('2026-01-01T00:00:00Z'), tags: ['a', 'b'] },
+    { _id: new ObjectId('507f1f77bcf86cd799439011'), state: 'pending', amount: Decimal128.fromString('12.34'), big: Long.fromString('9223372036854775807'), smallLong: Long.fromNumber(42), createdAt: new Date('2026-01-01T00:00:00Z'), tags: ['a', 'b'] },
     { _id: new ObjectId('507f1f77bcf86cd799439012'), state: 'pending', amount: 5, tags: ['b', 'c'] },
     { _id: new ObjectId('507f1f77bcf86cd799439013'), state: 'done', amount: 8, tags: null },
     { _id: new ObjectId('507f1f77bcf86cd799439014'), state: 'done', amount: 9 }
@@ -61,8 +63,12 @@ test('URI import separates encoded credentials and authenticates with the select
   assert.equal((await invoke(['ping'])).data.ok, true);
 });
 
-test('authenticated doctor, discovery and schema work through real mongosh', async () => {
-  assert.equal((await invoke(['doctor'])).data.ok, true);
+test('authenticated doctor, discovery and schema work with the bundled driver and an empty executable PATH', async () => {
+  const doctor = (await invoke(['doctor'])).data;
+  assert.equal(doctor.ok, true);
+  assert.equal(doctor.checks.driver, 'ok');
+  assert.match(doctor.driver_version, /^7\./);
+  assert.equal(doctor.mongosh_version, undefined);
   assert.ok((await invoke(['db', 'list'])).data.items.some(db => db.name === 'app'));
   assert.ok((await invoke(['collection', 'list'])).data.items.some(c => c.name === 'orders'));
   assert.ok((await invoke(['collection', 'schema', 'orders'])).data.items.some(f => f.field === 'state' && f.types.includes('string')));
@@ -74,6 +80,7 @@ test('authenticated doctor, discovery and schema work through real mongosh', asy
 test('find preserves BSON and paginates without lossy int64 conversion', async () => {
   const first = (await invoke(['document', 'find', 'orders', '--limit', '2'])).data;
   assert.equal(first.items.length, 2); assert.equal(first.has_more, true); assert.equal(first.next, 2);
+  assert.deepEqual(first.items[0].smallLong, { $numberLong: '42' });
   assert.deepEqual(first.items[0].big, { $numberLong: '9223372036854775807' });
   assert.deepEqual(first.items[0]._id, { $oid: '507f1f77bcf86cd799439011' });
   assert.deepEqual(first.items[0].amount, { $numberDecimal: '12.34' });
@@ -84,6 +91,10 @@ test('find preserves BSON and paginates without lossy int64 conversion', async (
   const precise = (await invoke(['document', 'find', 'orders', '--filter', '{"big":{"$numberLong":"9223372036854775807"}}'])).data;
   assert.equal(precise.items.length, 1);
   assert.equal((await invoke(['document', 'count', 'orders', '--filter', '{"state":"pending"}'])).data.count, 2);
+  const projected = (await invoke(['document', 'find', 'orders', '--projection', '{"_id":0,"state":1}', '--limit', '1'])).data;
+  assert.deepEqual(projected.items, [{ state: 'pending' }]);
+  const dated = (await invoke(['document', 'find', 'orders', '--filter', '{"createdAt":{"$gte":{"$date":"2026-01-01T00:00:00Z"}}}'])).data;
+  assert.equal(dated.items.length, 1);
 });
 
 test('aggregate, distinct, explain and NDJSON use bounded results', async () => {
@@ -100,7 +111,7 @@ test('aggregate, distinct, explain and NDJSON use bounded results', async () => 
 test('writes change data only after authorization and previews are offline', async () => {
   const insert = ['document', 'insert', 'scratch', '--document', '[{"_id":1,"state":"new"},{"_id":2,"state":"new"}]'];
   assert.equal((await invoke(insert, { success: false })).status, 5);
-  assert.equal((await invoke([...insert, '--dry-run', '--mongosh', '/missing/mongosh'])).data.dry_run, true);
+  assert.equal((await invoke([...insert, '--dry-run'])).data.dry_run, true);
   assert.equal(await client.db('app').collection('scratch').countDocuments(), 0);
   assert.equal((await invoke([...insert, '--allow-writes'])).data.acknowledged, true);
   assert.equal((await invoke(['document', 'update', 'scratch', '--filter', '{"state":"new"}', '--update', '{"$set":{"state":"done"}}', '--many', '--allow-writes'])).data.modifiedCount, 2);
@@ -111,7 +122,12 @@ test('writes change data only after authorization and previews are offline', asy
   assert.equal((await invoke(['document', 'delete', 'scratch', '--filter', '{}', '--many', '--all', '--allow-writes', '--read-only'], { success: false })).status, 5);
   assert.equal(await client.db('app').collection('scratch').countDocuments(), 1);
   assert.equal((await invoke(['collection', 'drop', 'scratch', '--confirm', 'scratch', '--allow-writes'])).data.dropped, true);
-  await invoke(['collection', 'create', 'scratch', '--allow-writes']);
+  assert.equal((await invoke(['collection', 'create', 'scratch', '--allow-writes'])).data.ok, 1);
+  assert.ok((await invoke(['collection', 'list'])).data.items.some(c => c.name === 'scratch'));
+  assert.equal((await invoke(['document', 'insert', 'scratch', '--document', '{"_id":3,"state":"new"}', '--allow-writes'])).data.insertedId, 3);
+  assert.equal((await invoke(['document', 'update', 'scratch', '--filter', '{"_id":3}', '--update', '{"$set":{"state":"updated"}}', '--allow-writes'])).data.modifiedCount, 1);
+  assert.equal((await invoke(['document', 'update', 'scratch', '--filter', '{"_id":4}', '--update', '{"$set":{"state":"upserted"}}', '--upsert', '--allow-writes'])).data.upsertedId, 4);
+  assert.equal((await invoke(['document', 'delete', 'scratch', '--filter', '{}', '--many', '--all', '--allow-writes'])).data.deletedCount, 2);
 });
 
 test('auth failures and query errors never reveal credentials or raw URIs', async () => {

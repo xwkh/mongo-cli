@@ -1,48 +1,39 @@
-/* Executed by mongosh --nodb --norc --quiet --file. No credentials in this file. */
+// Fixed Node.js worker; credentials arrive only through the anonymous stdin pipe.
+import fs from 'node:fs';
+import { MongoClient, BSON } from 'mongodb';
+import { connectionOptions } from './connection.js';
+
+const { EJSON } = BSON;
+const print = value => process.stdout.write(`${value}\n`);
 (async function () {
   let connection;
   const prefix = '__MONGO_CLI_RESPONSE__';
   try {
-    const request = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+    const request = JSON.parse(fs.readFileSync(0, 'utf8'));
     const c = request.context;
     const op = request.operation;
     for (const key of ['filter', 'projection', 'pipeline', 'document', 'update']) {
       if (op[key] !== undefined) op[key] = EJSON.deserialize(op[key], { relaxed: false });
     }
-    let hosts = c.host;
-    if (!c.srv) {
-      // Bare IPv6 is one host; seed lists can contain explicit per-host ports.
-      if (!hosts.includes(',') && !hosts.startsWith('[') && (hosts.match(/:/g) || []).length > 1) hosts = `[${hosts}]`;
-      hosts = hosts.split(',').map(h => /\]:\d+$/.test(h) || (!h.startsWith('[') && /:\d+$/.test(h)) ? h : `${h}:${c.port}`).join(',');
-    }
-    const params = new URLSearchParams({ appName: 'mongo-cli', authSource: c.auth_database, retryWrites: 'false', retryReads: 'false',
-      serverSelectionTimeoutMS: String(Math.min(request.timeout, 15000)), connectTimeoutMS: String(Math.min(request.timeout, 15000)) });
-    if (c.auth_mechanism) params.set('authMechanism', c.auth_mechanism);
-    if (c.tls || c.srv) params.set('tls', 'true');
-    if (c.direct_connection) params.set('directConnection', 'true');
-    if (c.replica_set) params.set('replicaSet', c.replica_set);
-    if (c.tls_ca_file) params.set('tlsCAFile', c.tls_ca_file);
-    if (c.tls_certificate_key_file) params.set('tlsCertificateKeyFile', c.tls_certificate_key_file);
-    const auth = request.credential ? `${encodeURIComponent(request.credential.username)}:${encodeURIComponent(request.credential.password)}@` : '';
-    const uri = `mongodb${c.srv ? '+srv' : ''}://${auth}${hosts}/${encodeURIComponent(c.database)}?${params}`;
-    connection = new Mongo(uri);
-    const database = connection.getDB(c.database);
-    const collection = op.collection ? database.getCollection(op.collection) : null;
+    const { uri, options } = connectionOptions(c, request.credential, request.timeout);
+    connection = new MongoClient(uri, options);
+    const database = connection.db(c.database);
+    const collection = op.collection ? database.collection(op.collection) : null;
     const maxTimeMS = request.max_time_ms;
     let result;
     const page = items => ({ items: items.slice(0, op.limit), has_more: items.length > op.limit,
       ...(items.length > op.limit ? { next: op.skip + op.limit } : {}) });
     switch (op.command) {
       case 'ping': case 'doctor': case 'auth status': case 'auth login':
-        await database.runCommand({ ping: 1, maxTimeMS });
+        await database.command({ ping: 1, maxTimeMS });
         result = { ok: true, database: c.database }; break;
       case 'db list': {
-        const r = await connection.getDB('admin').runCommand({ listDatabases: 1, nameOnly: true, authorizedDatabases: true, maxTimeMS });
+        const r = await connection.db('admin').command({ listDatabases: 1, nameOnly: true, authorizedDatabases: true, maxTimeMS });
         result = { items: r.databases, has_more: false }; break;
       }
-      case 'db stats': result = await database.runCommand({ dbStats: 1, maxTimeMS }); break;
-      case 'collection list': result = { items: await database.getCollectionInfos({}, { nameOnly: true, authorizedCollections: true }), has_more: false }; break;
-      case 'collection stats': result = await database.runCommand({ collStats: op.collection, maxTimeMS }); break;
+      case 'db stats': result = await database.command({ dbStats: 1, maxTimeMS }); break;
+      case 'collection list': result = { items: await database.listCollections({}, { nameOnly: true, authorizedCollections: true, maxTimeMS }).toArray(), has_more: false }; break;
+      case 'collection stats': result = await database.command({ collStats: op.collection, maxTimeMS }); break;
       case 'collection schema': {
         const fields = await collection.aggregate([
           { $limit: op.sample }, { $project: { fields: { $objectToArray: '$$ROOT' } } },
@@ -51,8 +42,8 @@
         ], { maxTimeMS }).toArray();
         result = { items: fields, has_more: false, sample_limit: op.sample, scope: 'top-level fields from the first bounded sample; not an exhaustive schema' }; break;
       }
-      case 'index list': result = { items: await collection.getIndexes(), has_more: false }; break;
-      case 'document find': result = page(await collection.find(op.filter, op.projection).sort(op.sort).skip(op.skip).limit(op.limit + 1).maxTimeMS(maxTimeMS).toArray()); break;
+      case 'index list': result = { items: await collection.listIndexes({ maxTimeMS }).toArray(), has_more: false }; break;
+      case 'document find': result = page(await collection.find(op.filter, { projection: op.projection }).sort(op.sort).skip(op.skip).limit(op.limit + 1).maxTimeMS(maxTimeMS).toArray()); break;
       case 'document count': result = { count: await collection.countDocuments(op.filter, { maxTimeMS }) }; break;
       case 'document distinct': {
         // Aggregation keeps the server response bounded, unlike distinct().
@@ -70,7 +61,7 @@
       case 'document update': result = op.many ? await collection.updateMany(op.filter, op.update, { upsert: op.upsert }) : await collection.updateOne(op.filter, op.update, { upsert: op.upsert }); break;
       case 'document replace': result = await collection.replaceOne(op.filter, op.document, { upsert: op.upsert }); break;
       case 'document delete': result = op.many ? await collection.deleteMany(op.filter) : await collection.deleteOne(op.filter); break;
-      case 'collection create': result = await database.createCollection(op.collection); break;
+      case 'collection create': await database.createCollection(op.collection); result = { ok: 1 }; break;
       case 'collection drop': result = { dropped: await collection.drop() }; break;
       case 'index create': result = { name: await collection.createIndex(op.keys, op.index_options) }; break;
       case 'index drop': result = await collection.dropIndex(op.index); break;

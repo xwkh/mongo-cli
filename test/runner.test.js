@@ -11,10 +11,11 @@ const operation = { command: 'document find', collection: 'orders', write: false
 test('runner isolates credentials in stdin and parses only the structured envelope', async () => {
   const result = await runMongo({ context, credential, operation, env: { ...process.env, MONGO_CLI_USERNAME: credential.username, MONGO_CLI_PASSWORD: credential.password }, spawnProcess: (file, args, options) => {
     assert.ok(!JSON.stringify(args).includes(credential.password));
-    assert.ok(args.includes('--nodb')); assert.ok(args.includes('--norc'));
+    assert.equal(file, process.execPath);
+    assert.equal(args.length, 1); assert.ok(args[0].endsWith('/src/worker.js'));
     assert.equal(options.env.MONGO_CLI_PASSWORD, undefined);
     assert.equal(options.env.MONGO_CLI_USERNAME, undefined);
-    return spawn(process.execPath, ['-e', `let input=''; process.stdin.on('data', c => input += c); process.stdin.on('end', () => { const r=JSON.parse(input); if (r.credential.password !== 'secret-password') process.exit(1); console.log('shell startup notice'); console.log('__MONGO_CLI_RESPONSE__'+JSON.stringify({ok:true,result:{items:[{text:'中文'}],has_more:false}})); });`], options);
+    return spawn(process.execPath, ['-e', `let input=''; process.stdin.on('data', c => input += c); process.stdin.on('end', () => { const r=JSON.parse(input); if (r.credential.password !== 'secret-password') process.exit(1); console.log('worker startup notice'); console.log('__MONGO_CLI_RESPONSE__'+JSON.stringify({ok:true,result:{items:[{text:'中文'}],has_more:false}})); });`], options);
   } });
   assert.deepEqual(result, { items: [{ text: '中文' }], has_more: false });
 });
@@ -22,7 +23,7 @@ test('runner isolates credentials in stdin and parses only the structured envelo
 test('runner never forwards raw URI errors, stdout or stderr', async () => {
   const spawnProcess = (_, args, options) => spawn(process.execPath, ['-e', `process.stdin.resume(); console.error('mongodb://secret-user:secret-password@host'); console.log('secret-password'); process.exitCode=1;`], options);
   await assert.rejects(runMongo({ context, credential, operation, spawnProcess }), error => {
-    assert.equal(error.code, 'INVALID_SHELL_RESPONSE');
+    assert.equal(error.code, 'INVALID_WORKER_RESPONSE');
     assert.ok(!JSON.stringify(error.payload()).includes(credential.password));
     return true;
   });
@@ -37,6 +38,20 @@ test('runner terminates timed-out writes and reports an unknown outcome without 
   });
 });
 
-test('missing mongosh produces a structured dependency error', async () => {
-  await assert.rejects(runMongo({ context, credential, operation, executable: '/nonexistent/mongosh' }), { code: 'MONGOSH_UNAVAILABLE' });
+test('worker startup failure produces a structured dependency error', async () => {
+  await assert.rejects(runMongo({ context, credential, operation, spawnProcess: (_, args, options) => spawn('/nonexistent/node', args, options) }), { code: 'WORKER_UNAVAILABLE' });
+});
+
+test('driver error envelopes redact raw messages and retain authentication classification', async () => {
+  const spawnProcess = (_, args, options) => spawn(process.execPath, ['-e', `process.stdin.resume(); console.log('__MONGO_CLI_RESPONSE__'+JSON.stringify({ok:false,error:{code:18,name:'MongoServerError',message:'mongodb://secret-user:secret-password@host'}}));`], options);
+  await assert.rejects(runMongo({ context, credential, operation, spawnProcess }), error => {
+    assert.equal(error.code, 'AUTHENTICATION_FAILED');
+    assert.ok(!JSON.stringify(error.payload()).includes(credential.password));
+    return true;
+  });
+});
+
+test('worker response bytes remain bounded', async () => {
+  const spawnProcess = (_, args, options) => spawn(process.execPath, ['-e', `process.stdin.resume(); process.stdout.write('x'.repeat(17 * 1024 * 1024));`], options);
+  await assert.rejects(runMongo({ context, credential, operation, spawnProcess }), { code: 'OUTPUT_TOO_LARGE' });
 });

@@ -1,13 +1,15 @@
 # mongo-cli
 
-让 AI 直接使用 MongoDB，同时让连接信息与凭据留在本机。基于已有的 `mongosh`，提供非交互命令、默认 JSON 输出、结构化错误、多连接配置和配套 `mongodb` skill。
+让 AI 直接使用 MongoDB，同时让连接信息与凭据留在本机。内置 MongoDB 官方 Node.js 驱动，提供非交互命令、默认 JSON 输出、结构化错误、多连接配置和配套 `mongodb` skill。
 
-运行需要 **Node.js 22+** 和 **mongosh**。运行时没有额外 npm 依赖。开发测试使用的 MongoDB driver 和临时 MongoDB 服务都是 devDependencies。
+运行只需要 **Node.js 22+**，**无需单独安装 mongosh**。`npm install` 自动安装作为运行依赖的 `mongodb` 官方驱动；测试用临时 MongoDB 服务仅属于开发依赖。当前驱动要求 MongoDB Server 4.4 或更高版本，具体功能仍受服务器版本和权限限制。
+
+从 0.2.0 开始使用内置驱动。原有连接、钥匙串/文件凭据和命令保持兼容；`doctor` 返回 `driver_version` / `checks.driver`。旧的 `--mongosh` 参数已移除，`MONGO_CLI_MONGOSH` 不再使用。
 
 ## 安装与首次配置
 
 ```sh
-npm install -g @xwkh/mongo-cli
+npm install -g @xwkh/mongo-cli --registry=https://registry.npmjs.org/
 mongo-cli version
 mongo-cli skill install --agent codex
 ```
@@ -138,10 +140,9 @@ SRV 使用 DNS 端口、自动启用 TLS；不支持自定义端口或 direct co
 | --- | --- |
 | `MONGO_CLI_CONFIG_DIR` | 配置目录，对应 `--config` |
 | `MONGO_CLI_CONTEXT` | 单次选择连接，对应 `--use-context` |
-| `MONGO_CLI_MONGOSH` | mongosh 可执行文件路径，对应 `--mongosh` |
 | `MONGO_CLI_USERNAME` / `MONGO_CLI_PASSWORD` | 自动化私密环境提供的一组凭据，优先于凭据存储 |
 | `MONGO_CLI_READ_ONLY=1` | 严格只读锁，优先于 `--allow-writes` |
-| `MONGO_CLI_SKILL=0.1.4` | skill 已加载的版本标记 |
+| `MONGO_CLI_SKILL=0.2.0` | skill 已加载的版本标记 |
 
 不自动读取当前工程的 `.env`，不提供 `--password` 或含凭据的 URI 参数。用于自动化的凭据应由私密的进程环境注入，不应让模型输出 `export PASSWORD=...`。
 
@@ -175,7 +176,7 @@ cat filter.json | mongo-cli document find orders --filter-file -
 
 下一页保留相同过滤和排序，并传 `--skip 20`。支持 `--format ndjson`，每行一条记录，分页通知放在 stderr。`--fields _id,status` 在输出端投影；`--projection` 是 MongoDB 服务端投影。`--pretty` 格式化 JSON。
 
-`--timeout` 是 mongosh 整个进程的超时毫秒数，默认 30000；`--max-time-ms` 是服务端查询时间限制，默认不超过 10000 且不大于进程超时。每次输出最多 16 MiB。启动一个 mongosh 通常有约一秒开销，适合交互式排查和自动化查询，不适合高频业务访问。
+`--timeout` 是单次数据库 worker 的整体超时毫秒数（包括驱动启动、连接、执行和关闭），默认 30000；`--max-time-ms` 是服务端查询时间限制，默认不超过 10000 且不大于整体超时。每次输出最多 16 MiB。worker 使用当前 Node.js 运行时，通过官方驱动直连数据库，不启动 mongosh。
 
 ## 写入与预览
 
@@ -236,11 +237,11 @@ stdout 只输出结果；错误是 stderr 中的 JSON，例如：
 | 6 | 集合不存在 |
 | 7 | 网络 / 服务器选择失败 |
 | 8 | 进程或查询超时 |
-| 9 | mongosh 不可用 |
+| 9 | 数据库 worker 运行依赖不可用 |
 | 10 | 本地或执行协议错误 |
 | 11 | MongoDB 查询、重复键等操作错误 |
 
-服务端原始错误可能包含连接串或数据，因此 CLI 只输出分类、稳定错误码、恢复提示和服务器数字错误码，不直接透传错误正文。mongosh 本身也会对日志中的凭据脱敏，见 [MongoDB 官方说明](https://www.mongodb.com/docs/mongodb-shell/write-scripts/)。
+服务端原始错误可能包含连接串或数据，因此 CLI 只输出分类、稳定错误码、恢复提示和服务器数字错误码，不直接透传错误正文。驱动诊断日志关闭，worker 原始 stdout/stderr 不透传。
 
 ## 开发与验证
 
@@ -251,7 +252,7 @@ npm run test:integration
 npm pack --dry-run
 ```
 
-端到端测试用 `mongodb-memory-server` 启动独立的本机 MongoDB，启用认证，再通过真实 mongosh 调用 CLI。首次安装/测试会下载 MongoDB 测试二进制；不使用真实业务连接、账号或数据。测试涵盖认证、发现、BSON 精度、分页、读写、预览、索引、脱敏和退出登录。
+端到端测试用 `mongodb-memory-server` 启动独立的本机 MongoDB，启用认证，再通过 CLI 自带驱动验证完整命令。每次 CLI 调用的 PATH 指向无可执行文件的临时目录，证明不依赖 mongosh 或外部 node 命令。首次安装/测试会下载 MongoDB 测试二进制；不使用真实业务连接、账号或数据。测试涵盖认证、发现、BSON 精度、分页、读写、预览、索引、脱敏和退出登录。
 
 架构、参考源码和设计取舍见 [docs/design.md](docs/design.md)。命令完整参数由 `mongo-cli <noun> <verb> --help` 提供。
 

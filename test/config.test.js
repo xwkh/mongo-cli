@@ -71,11 +71,11 @@ test('JSON and NDJSON projection retain continuation without polluting stdout', 
   assert.equal({}.polluted, undefined);
 });
 
-test('offline CLI dry-run never invokes mongosh or loads credentials', t => {
+test('offline CLI dry-run never connects or loads credentials', t => {
   const dir = temporary(t), cli = path.resolve('bin/mongo-cli.js');
   const invoke = args => spawnSync(process.execPath, [cli, '--config', dir, ...args], { encoding: 'utf8' });
   assert.equal(invoke(['config', 'set-context', 'dev']).status, 0);
-  const r = invoke(['document', 'insert', 'orders', '--document', '{"x":1}', '--dry-run', '--mongosh', '/not/a/program']);
+  const r = invoke(['document', 'insert', 'orders', '--document', '{"x":1}', '--dry-run']);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).dry_run, true);
   const bad = invoke(['document', 'find', 'orders', '--password', 'DO_NOT_ECHO']);
