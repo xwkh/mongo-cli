@@ -2,7 +2,7 @@
 name: mongodb
 description: "Query and manage MongoDB through mongo-cli using locally stored connections and credentials. Use when the user asks to inspect MongoDB databases, collections, fields, indexes, documents, query plans or aggregations, or explicitly requests MongoDB data/index changes. Discover real database and collection names before querying. Does not administer MongoDB users, clusters, backups or arbitrary shell scripts."
 metadata:
-  version: "0.1.3"
+  version: "0.1.4"
   requires:
     bins: ["mongo-cli", "mongosh"]
 ---
@@ -10,7 +10,7 @@ metadata:
 # MongoDB
 
 Use `mongo-cli`, which wraps local `mongosh` and emits JSON. Set
-`MONGO_CLI_SKILL=0.1.3` when running it after loading this skill.
+`MONGO_CLI_SKILL=0.1.4` when running it after loading this skill.
 
 ## Connection and credentials
 
@@ -37,8 +37,8 @@ Use `mongo-cli`, which wraps local `mongosh` and emits JSON. Set
   Unsupported/duplicate URI options are errors, never silently ignored.
 - `--config` selects a config directory, not a file. `--database` overrides
   only the database for one invocation. Host/port changes use a separate context.
-- The default config directory is `~/.zhouping/mongo`. Default-directory use
-  migrates the old `~/.config/mongo-cli` directory when the destination is absent,
+- The default config directory is `~/.xwkh/mongo`. Default-directory use
+  migrates `~/.zhouping/mongo` (or the older `~/.config/mongo-cli`) when the destination is absent,
   preserving credential lookups. Explicit `--config` / `MONGO_CLI_CONFIG_DIR`
   overrides are respected and never trigger migration.
 

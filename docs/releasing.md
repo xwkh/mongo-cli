@@ -1,10 +1,10 @@
 # 发布
 
-源码仓库：[xwkh/mongo-cli](https://github.com/xwkh/mongo-cli)。npm 包名：`@zhouping/mongo-cli`，发布到 npm 公共仓库。
+源码仓库：[xwkh/mongo-cli](https://github.com/xwkh/mongo-cli)。npm 包名：`@xwkh/mongo-cli`，发布到 npm 公共仓库。
 
 ## 账号
 
-本机需具备 GitHub 仓库写权限和 npm `@zhouping` 命名空间发布权限。npm 用户 scope 必须与用户名一致，或者使用有权限的组织 scope；GitHub 用户名与 npm 用户名可以不同。
+本机需具备 GitHub 仓库写权限和 npm `@xwkh` 命名空间发布权限。npm 用户 scope 必须与用户名一致，或者使用有权限的组织 scope；GitHub 用户名与 npm 用户名可以不同。
 
 ```sh
 npm login --registry=https://registry.npmjs.org/
@@ -34,7 +34,7 @@ npm publish --dry-run --access public --registry=https://registry.npmjs.org/
 ```sh
 git push origin main
 npm publish --access public --registry=https://registry.npmjs.org/
-npm view @zhouping/mongo-cli version dist.integrity --registry=https://registry.npmjs.org/
+npm view @xwkh/mongo-cli version dist.integrity --registry=https://registry.npmjs.org/
 ```
 
 首次发布需要 `--access public`（也已写入 `publishConfig`）。npm 可能要求在网页或终端完成二次验证。后续可配置 npm trusted publishing，通过 GitHub Actions OIDC 发布，避免长期 npm 令牌；此仓库当前不自动发布。
@@ -42,7 +42,7 @@ npm view @zhouping/mongo-cli version dist.integrity --registry=https://registry.
 发布后检查：
 
 ```sh
-npm install -g @zhouping/mongo-cli
+npm install -g @xwkh/mongo-cli
 mongo-cli version
 mongo-cli skill install --agent codex
 ```

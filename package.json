@@ -1,6 +1,6 @@
 {
-  "name": "@zhouping/mongo-cli",
-  "version": "0.1.3",
+  "name": "@xwkh/mongo-cli",
+  "version": "0.1.4",
   "description": "Agent-friendly MongoDB CLI backed by mongosh, with local credentials and a companion skill",
   "repository": {
     "type": "git",
@@ -10,7 +10,14 @@
   "bugs": {
     "url": "https://github.com/xwkh/mongo-cli/issues"
   },
-  "keywords": ["mongodb", "mongosh", "cli", "ai", "agents", "codex"],
+  "keywords": [
+    "mongodb",
+    "mongosh",
+    "cli",
+    "ai",
+    "agents",
+    "codex"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

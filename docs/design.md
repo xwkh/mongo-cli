@@ -19,7 +19,7 @@ MongoDB 需要的是 AI 可稳定调用的命令协议，以及独立于聊天�
 
 沿用的产品约定：名词/动词命令、命名连接、JSON stdout、结构化 stderr、`items/has_more/next`、本地交互配置、钥匙串/受限文件、`doctor`、随包 skill 和 `--dry-run`。
 
-明确不同的行为：本项目默认阻止写入；显式 read-only 锁优先于 allow-writes；只允许结构化操作，不提供任意脚本；不自动读取 `.env`；不复制参考项目的实现代码。此项目独立维护，npm 包名使用 `@zhouping/mongo-cli`。
+明确不同的行为：本项目默认阻止写入；显式 read-only 锁优先于 allow-writes；只允许结构化操作，不提供任意脚本；不自动读取 `.env`；不复制参考项目的实现代码。此项目独立维护，npm 包名使用 `@xwkh/mongo-cli`。
 
 ## 模块
 
@@ -50,6 +50,8 @@ bin/mongo-cli.js
 0.1.2 的 `config init` 先展示配置方式选择，URI 在第一项并作为回车默认值；第二项逐项输入。`--from-uri`、`--step-by-step` 和 `--uri-stdin` 可跳过选择，三者互斥。
 
 0.1.3 统一使用作者命名空间 `~/.zhouping/mongo`。默认目录首次解析时，将尚未迁移的旧 `~/.config/mongo-cli` 整体 rename 到新位置；已有目标目录不会被覆盖。自定义配置目录不迁移。默认目录的新旧路径作为同一凭据命名空间，散列仍保留旧目录的身份输入，因此 file 后端文件名、macOS keychain 的 account 均保持可用；无需提取或重写密码。该兼容映射只影响散列输入，不会在旧路径继续读写文件。
+
+0.1.4 根据实际 npm 账号统一使用 `@xwkh/mongo-cli` 和 `~/.xwkh/mongo`。迁移优先查找上一版 `~/.zhouping/mongo`，其次是最早的 `~/.config/mongo-cli`；凭据身份保持向后兼容，已配置用户无需重新登录。
 
 macOS 保存凭据时同样通过 `security -i` 的 stdin 传递 base64 编码的数据，没有密码命令行参数。base64 只服务于命令解析，不是加密。保存时如果钥匙串存在但访问失败，会保留失败，不静默写入文件。Windows 不实现文件凭据存储，自动化环境可注入私密环境变量；Windows 全链路未经验证。
 

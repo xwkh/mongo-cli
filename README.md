@@ -7,7 +7,7 @@
 ## 安装与首次配置
 
 ```sh
-npm install -g @zhouping/mongo-cli
+npm install -g @xwkh/mongo-cli
 mongo-cli version
 mongo-cli skill install --agent codex
 ```
@@ -18,7 +18,7 @@ mongo-cli skill install --agent codex
 git clone https://github.com/xwkh/mongo-cli.git
 cd mongo-cli
 npm pack --pack-destination /tmp
-npm install -g /tmp/zhouping-mongo-cli-0.1.3.tgz --omit=dev
+npm install -g /tmp/xwkh-mongo-cli-0.1.4.tgz --omit=dev
 ```
 
 先打包再安装能兼容 Volta 的全局命令管理。未使用 Volta 的环境也可直接 `npm install -g . --omit=dev`。
@@ -70,14 +70,14 @@ mongo-cli collection list --use-context dev
 
 自动化可使用 `config init --uri-stdin --name dev` 从私密标准输入管道导入；它与 `--from-uri` 互斥。不提供 `--uri <连接串>`，以免账号密码出现在进程参数中。
 
-默认配置目录是 `~/.zhouping/mongo`，与 npm 包 `@zhouping/mongo-cli` 的命名空间一致：
+默认配置目录是 `~/.xwkh/mongo`，与 npm 包 `@xwkh/mongo-cli` 的命名空间一致：
 
 ```text
 config.json                 # 非敏感连接参数，不含账号密码
 credentials/<hash>.json     # 仅 file 后端使用，0600，明文凭据
 ```
 
-0.1.3 首次使用默认目录时，如果发现旧的 `~/.config/mongo-cli/config.json` 且新目录尚不存在，会将旧目录整体迁移到 `~/.zhouping/mongo`。连接配置、凭据文件和钥匙串的查找键保持兼容，无需重新登录。新旧目录同时存在时优先使用新目录，不自动合并或覆盖。显式指定 `--config` 或 `MONGO_CLI_CONFIG_DIR` 时按指定目录使用，不触发迁移。
+0.1.4 首次使用默认目录时，如果新目录尚不存在，会先查找 `~/.zhouping/mongo/config.json`，再查找更早的 `~/.config/mongo-cli/config.json`，将找到的旧目录整体迁移到 `~/.xwkh/mongo`。连接配置、凭据文件和钥匙串的查找键保持兼容，无需重新登录。新旧目录同时存在时优先使用新目录，不自动合并或覆盖。显式指定 `--config` 或 `MONGO_CLI_CONFIG_DIR` 时按指定目录使用，不触发迁移。
 
 这是配置目录；程序仍由 npm/Volta 管理，skill 仍安装到对应代理的技能目录，例如 `~/.codex/skills/mongodb`。
 
@@ -150,7 +150,7 @@ SRV 使用 DNS 端口、自动启用 TLS；不支持自定义端口或 direct co
 | `MONGO_CLI_MONGOSH` | mongosh 可执行文件路径，对应 `--mongosh` |
 | `MONGO_CLI_USERNAME` / `MONGO_CLI_PASSWORD` | 自动化私密环境提供的一组凭据，优先于凭据存储 |
 | `MONGO_CLI_READ_ONLY=1` | 严格只读锁，优先于 `--allow-writes` |
-| `MONGO_CLI_SKILL=0.1.3` | skill 已加载的版本标记 |
+| `MONGO_CLI_SKILL=0.1.4` | skill 已加载的版本标记 |
 
 不自动读取当前工程的 `.env`，不提供 `--password` 或含凭据的 URI 参数。用于自动化的凭据应由私密的进程环境注入，不应让模型输出 `export PASSWORD=...`。
 

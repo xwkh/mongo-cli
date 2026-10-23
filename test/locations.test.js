@@ -13,10 +13,36 @@ function fixture(t) {
   return { home, ...configPaths(home) };
 }
 
-test('fresh installs use the zhouping namespace without creating files during lookup', t => {
+test('fresh installs use the xwkh namespace without creating files during lookup', t => {
   const { home, current } = fixture(t);
-  assert.equal(configDirectory({}, {}, home), path.join(home, '.zhouping', 'mongo'));
+  assert.equal(configDirectory({}, {}, home), path.join(home, '.xwkh', 'mongo'));
   assert.equal(fs.existsSync(current), false);
+});
+
+test('the previous zhouping directory migrates with file credentials and stable keychain keys', t => {
+  const { home, current, previous, legacy } = fixture(t);
+  const context = validateContext({ credential_backend: 'file' });
+  const config = { version: 1, current_context: 'dev', contexts: { dev: context } };
+  saveConfig(previous, config);
+  const key = accountKey(previous, 'dev', context, home);
+  assert.equal(key, accountKey(legacy, 'dev', context, home));
+  const credential = { username: 'synthetic-account', password: 'synthetic-password' };
+  new CredentialStore(previous, { platform: 'linux' }).save(key, credential, 'file');
+  assert.equal(configDirectory({}, {}, home), current);
+  assert.deepEqual(loadConfig(current), config);
+  assert.equal(fs.existsSync(previous), false);
+  assert.equal(key, accountKey(current, 'dev', context, home));
+  assert.deepEqual(new CredentialStore(current, { platform: 'linux' }).load(key, 'file'), credential);
+});
+
+test('the most recent previous directory takes precedence without merging older settings', t => {
+  const { home, current, previous, legacy } = fixture(t);
+  const recent = { version: 1, current_context: 'recent', contexts: { recent: validateContext({}) } };
+  const old = { version: 1, current_context: null, contexts: {} };
+  saveConfig(previous, recent); saveConfig(legacy, old);
+  assert.equal(configDirectory({}, {}, home), current);
+  assert.deepEqual(loadConfig(current), recent);
+  assert.deepEqual(loadConfig(legacy), old);
 });
 
 test('legacy configuration and file credentials move intact with compatible account keys', t => {
